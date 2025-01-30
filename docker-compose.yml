@@ -2,10 +2,11 @@ version: '3.8'
 
 services:
   api:
-    build: .
+    image: zhangkunyuan/ha-ai-api:latest
     ports:
       - "8000:8000"
     volumes:
+      # 使用前请先创建 config.yaml 配置文件
       - ./config.yaml:/app/config.yaml
     restart: unless-stopped
     environment:
