@@ -1,0 +1,7 @@
+uvicorn==0.34.0
+pyyaml==6.0.2
+pydantic==2.10.6
+fastapi==0.115.7
+httpx==0.28.1
+pyyaml==6.0.2
+loguru==0.7.3
