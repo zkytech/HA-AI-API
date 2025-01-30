@@ -9,7 +9,6 @@
 - 支持多上游服务配置
 - 基于优先级的服务自动切换
 - 统一的对外模型名称
-- 请求超时和重试机制
 - API Key 认证
 - Docker 支持
 
@@ -37,7 +36,6 @@ upstream_services:
     model_mapping:
       "deepseek-chat": "gpt-3.5-turbo"
     timeout: 30
-    retry_count: 3
 
   - name: upstream2
     priority: 2
@@ -46,7 +44,6 @@ upstream_services:
     model_mapping:
       "deepseek-chat": "claude-v1"
     timeout: 30
-    retry_count: 3
 ```
 
 ### 使用 Docker 运行
@@ -114,7 +111,6 @@ curl -X POST "http://localhost:8000/v1/chat/completions" \
 - `api_key`: 上游服务的 API Key
 - `model_mapping`: 模型名称映射
 - `timeout`: 请求超时时间（秒）
-- `retry_count`: 重试次数
 
 ## 开发
 
