@@ -26,10 +26,6 @@ async def openai_proxy(
     
     json_data = await request.json() if request.method in ["POST", "PUT"] else {}
     
-    # 确保输入模型名称为 deepseek-chat
-    if "model" in json_data and json_data["model"] != "deepseek-chat":
-        raise HTTPException(status_code=400, detail="Only deepseek-chat model is supported")
-
     service = request.app.state.openai_service
     
     # 如果是流式请求，直接返回 StreamingResponse

@@ -9,6 +9,7 @@ class OpenAIService:
     def __init__(self, upstream_configs: list[UpstreamConfig]):
         self.upstream_configs = sorted(upstream_configs, key=lambda x: x.priority)
         self.current_upstream_index = 0
+        self.tried_upstreams = 0
         self.client = httpx.AsyncClient()
         logger.info(f"OpenAIService initialized with {len(upstream_configs)} upstream configs")
 
@@ -66,6 +67,7 @@ class OpenAIService:
                     raise Exception("All upstream services failed") from e
 
     async def forward_stream_request(self, path: str, method: str, headers: Dict, json_data: Dict) -> AsyncGenerator[bytes, None]:
+        self.tried_upstreams = 0
         while True:
             try:
                 current_upstream = self.upstream_configs[self.current_upstream_index]
@@ -114,10 +116,14 @@ class OpenAIService:
                 return
 
             except Exception as e:
+                # print stack trace
+                import traceback
+                traceback.print_exc()
                 logger.error(f"Error occurred while forwarding stream request: {str(e)}", exc_info=True)
-                logger.warning(f"Switching to next upstream config for stream request (current index: {self.current_upstream_index})")
+                self.tried_upstreams += 1
+                logger.warning(f"Switching to next upstream config for stream request (tried {self.tried_upstreams}/{len(self.upstream_configs)})")
                 self.current_upstream_index = (self.current_upstream_index + 1) % len(self.upstream_configs)
-                if self.current_upstream_index == 0:
+                if self.tried_upstreams >= len(self.upstream_configs):
                     logger.critical("All upstream services failed for stream request")
                     raise Exception("All upstream services failed") from e
     
