@@ -14,6 +14,10 @@ class OpenAIService:
         logger.info(f"OpenAIService initialized with {len(upstream_configs)} upstream configs")
 
     async def forward_normal_request(self, path: str, method: str, headers: Dict, json_data: Dict) -> Any:
+        # 重置计数器
+        self.current_upstream_index = 0
+        self.tried_upstreams = 0
+        
         while True:
             try:
                 current_upstream = self.upstream_configs[self.current_upstream_index]
@@ -93,7 +97,10 @@ class OpenAIService:
                     raise Exception("All upstream services failed") from e
 
     async def forward_stream_request(self, path: str, method: str, headers: Dict, json_data: Dict) -> AsyncGenerator[bytes, None]:
+        # 重置计数器
+        self.current_upstream_index = 0
         self.tried_upstreams = 0
+        
         while True:
             try:
                 current_upstream = self.upstream_configs[self.current_upstream_index]
