@@ -1,6 +1,7 @@
 import httpx
 import asyncio
 import json
+import brotli
 from typing import Dict, Any, AsyncGenerator
 from ..models import UpstreamConfig
 from loguru import logger
@@ -69,8 +70,14 @@ class OpenAIService:
                     raise Exception(f"Upstream server error: {response.status_code}")
 
                 try:
-                    # httpx 会自动处理各种压缩格式，包括 br 和 gzip
-                    response_text = response.text
+                    # 检查响应是否使用了 Brotli 压缩
+                    content_encoding = response.headers.get('content-encoding', '').lower()
+                    if content_encoding == 'br':
+                        # 解压 Brotli 压缩的内容
+                        response_text = brotli.decompress(response.content).decode('utf-8')
+                    else:
+                        # 使用普通的文本解码
+                        response_text = response.text
                     
                     try:
                         response_json = json.loads(response_text)
