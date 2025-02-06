@@ -10,7 +10,7 @@ class OpenAIService:
         self.upstream_configs = sorted(upstream_configs, key=lambda x: x.priority)
         self.current_upstream_index = 0
         self.tried_upstreams = 0
-        self.client = httpx.AsyncClient()
+        self.client = httpx.AsyncClient(timeout=10.0)
         logger.info(f"OpenAIService initialized with {len(upstream_configs)} upstream configs")
 
     async def forward_normal_request(self, path: str, method: str, headers: Dict, json_data: Dict) -> Any:
@@ -26,7 +26,10 @@ class OpenAIService:
                     json_data["model"] = mapped_model
                     logger.info(f"Model mapping: {original_model} -> {mapped_model}")
 
-                url = f"{current_upstream.base_url}{path}"
+                # 修复 URL 格式
+                base_url = current_upstream.base_url.rstrip('/')
+                path = path.lstrip('/')
+                url = f"{base_url}/{path}"
                 logger.debug(f"Full request URL: {url}")
                 
                 # 创建新的headers，避免修改原始headers
@@ -38,13 +41,20 @@ class OpenAIService:
                 request_headers['Authorization'] = f"Bearer {current_upstream.api_key}"
                 
                 logger.debug("Sending request with modified headers")
-                response = await self.client.request(
-                    method=method,
-                    url=url,
-                    headers=request_headers,
-                    json=json_data,
-                    timeout=current_upstream.timeout
-                )
+                try:
+                    response = await self.client.request(
+                        method=method,
+                        url=url,
+                        headers=request_headers,
+                        json=json_data,
+                        timeout=current_upstream.timeout
+                    )
+                except httpx.TimeoutException as te:
+                    logger.error(f"Request timeout for {url}: {str(te)}")
+                    raise
+                except httpx.RequestError as re:
+                    logger.error(f"Request failed for {url}: {str(re)}")
+                    raise
                 
                 logger.info(f"Response received - Status code: {response.status_code}")
                 logger.debug(f"Response headers: {response.headers}")
@@ -54,15 +64,31 @@ class OpenAIService:
                     logger.error(f"Error response body: {response.text}")
                     raise Exception(f"Upstream server error: {response.status_code}")
 
-                response_json = response.json()
-                logger.debug(f"Response body: {response_json}")
-                return response_json
+                try:
+                    # httpx 会自动处理各种压缩格式，包括 br 和 gzip
+                    response_text = response.text
+                    
+                    try:
+                        response_json = json.loads(response_text)
+                    except json.JSONDecodeError as je:
+                        logger.error(f"Invalid JSON response: {response_text}")
+                        raise Exception("Invalid JSON response from upstream") from je
+                        
+                    logger.debug(f"Response body: {response_json}")
+                    return response_json
+                    
+                except Exception as e:
+                    logger.error(f"Error processing response: {str(e)}")
+                    logger.error(f"Response headers: {response.headers}")
+                    logger.error(f"Raw response content: {response.content}")
+                    raise Exception("Failed to process upstream response") from e
 
             except Exception as e:
                 logger.error(f"Error occurred while forwarding request: {str(e)}", exc_info=True)
-                logger.warning(f"Switching to next upstream config (current index: {self.current_upstream_index})")
+                self.tried_upstreams += 1
+                logger.warning(f"Switching to next upstream config (tried {self.tried_upstreams}/{len(self.upstream_configs)})")
                 self.current_upstream_index = (self.current_upstream_index + 1) % len(self.upstream_configs)
-                if self.current_upstream_index == 0:
+                if self.tried_upstreams >= len(self.upstream_configs):
                     logger.critical("All upstream services failed")
                     raise Exception("All upstream services failed") from e
 
