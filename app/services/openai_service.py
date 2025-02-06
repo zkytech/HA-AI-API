@@ -73,8 +73,13 @@ class OpenAIService:
                     # 检查响应是否使用了 Brotli 压缩
                     content_encoding = response.headers.get('content-encoding', '').lower()
                     if content_encoding == 'br':
-                        # 解压 Brotli 压缩的内容
-                        response_text = brotli.decompress(response.content).decode('utf-8')
+                        try:
+                            # 尝试 Brotli 解压缩
+                            response_text = brotli.decompress(response.content).decode('utf-8')
+                        except Exception as be:
+                            # 如果 Brotli 解压缩失败，尝试直接解码内容
+                            logger.warning(f"Brotli decompression failed: {str(be)}, trying direct decode")
+                            response_text = response.content.decode('utf-8')
                     else:
                         # 使用普通的文本解码
                         response_text = response.text
